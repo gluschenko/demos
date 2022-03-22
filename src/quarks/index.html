@@ -1,0 +1,459 @@
+
+
+<style>
+body
+{
+	margin: 0;
+}
+</style>
+
+<div>
+	<canvas id='LinesX' width='1024' height='600' style='display: block;'></canvas>
+</div>
+
+<script>
+
+var Quarks = [];
+var Electrons = [];
+var Barions = [];
+
+function Point(x, y, velocityX, velocityY)
+{
+	return { 
+		x: x | 0, 
+		y: y | 0, 
+		velocityX: velocityX | 0, 
+		velocityY: velocityY | 0
+	};
+}
+
+function Quark(pos, type, colorCharge)
+{
+	this.id = Quarks.length + 1;
+	this.pos = pos;
+	this.type = type;
+	this.colorCharge = colorCharge;
+	this.target = null;
+	
+	this.getCharge = function(){
+		switch(this.type)
+		{
+		// первое поколение
+		case "d":
+			return -1/3;
+			break;
+		case "u":
+			return 2/3;
+			break;
+		// второе поколение
+		case "s":
+			return -1/3;
+			break;
+		case "c":
+			return 2/3;
+			break;
+		// третье покление
+		case "b":
+			return -1/3;
+			break;
+		case "t":
+			return 2/3;
+			break;
+		}
+		
+		return 0;
+	};
+}
+
+function Electron(pos)
+{
+	this.id = Electrons.length + 1;
+	this.pos = pos;
+	this.getCharge = function(){ return -1; };
+	this.target = null;
+}
+
+Quark.Find = function(q)
+{
+	var min_dist = 10000000;
+	var nearest = null;
+	for(var i = 0; i < Quarks.length; i++)
+	{
+		if(Quarks[i].id != q.id)
+		{
+			var dist = LinesX.Distance(q.pos, Quarks[i].pos);
+			if(dist < min_dist)
+			{
+				nearest = Quarks[i];
+				min_dist = dist;
+			}
+		}
+	}
+	return nearest;
+}
+
+Quark.FindIn = function(q, dist){
+	var res = [];
+	for(var i = 0; i < Quarks.length; i++)
+	{
+		if(Quarks[i].id != q.id)
+		{
+			var is_negative = q.getCharge() > 0 ? Quarks[i].getCharge() < 0 : Quarks[i].getCharge() > 0;
+			var d = LinesX.Distance(q.pos, Quarks[i].pos);
+			if(d < dist && Quarks[i].target == null && is_negative)
+			{
+				res.push(Quarks[i]);
+			}
+		}
+	}
+	return res;
+};
+
+Electron.Find = function(e)
+{
+	var min_dist = 10000000;
+	var nearest = null;
+	for(var i = 0; i < Electrons.length; i++)
+	{
+		if(Electrons[i].id != e.id)
+		{
+			var dist = LinesX.Distance(e.pos, Electrons[i].pos);
+			if(dist < min_dist)
+			{
+				nearest = Electrons[i];
+				min_dist = dist;
+			}
+		}
+	}
+	return nearest;
+}
+
+Electron.FindIn = function(pos, dist){
+	var res = [];
+	for(var i = 0; i < Electrons.length; i++)
+	{
+		var d = LinesX.Distance(pos, Electrons[i].pos);
+		if(d < dist && Electrons[i].target == null)
+		{
+			res.push(Electrons[i]);
+		}
+	}
+	return res;
+};
+
+function Barion(pos, A, B, C)
+{
+	this.pos = pos;
+	this.A = A;
+	this.B = B;
+	this.C = C;
+	this.e = null;
+	
+	this.getCharge = function(){ 
+		return this.A.getCharge() + this.B.getCharge() + this.C.getCharge();
+	};
+}
+
+
+
+LinesX = {
+	Canvas: null,
+	Context: null,
+	Width: 0,
+	Height: 0,
+	
+	Points: [],
+	
+	Counter: 0,
+	
+	mousePosition: { x: 0, y: 0 },
+	FPSCount: 0,
+	FPSCountView: 0,
+
+	Init: function(obj, struct){
+		var e = LinesX;
+
+		e.ApplyCanvas(obj);
+		e.Draw();
+
+		document.getElementById(obj).addEventListener("mousemove", function (event) {
+            e.mousePosition = e.getMousePosition(event);
+        }, false);
+
+		/*Find(obj).addEventListener("click", function (event) {
+            e.Zoom *= 1.05;
+			e.OffsetX += (e.Width/2 - e.mousePosition.x) < 0 ? -10 : 10;
+			e.OffsetY += (e.Height/2 - e.mousePosition.y) < 0 ? -10 : 10;
+			e.Draw();
+			event.preventDefault();
+        }, false);
+
+		Find(obj).addEventListener("contextmenu", function (event) {
+            e.Zoom *= 0.95;
+			e.OffsetX += (e.Width/2 - e.mousePosition.x) < 0 ? -10 : 10;
+			e.OffsetY += (e.Height/2 - e.mousePosition.y) < 0 ? -10 : 10;
+			e.Draw();
+			event.preventDefault();
+        }, false);*/
+		
+		setInterval(function(){
+			e.FPSCountView = e.FPSCount * 2;
+			e.FPSCount = 0;
+		}, 500);
+	},
+	ApplyCanvas: function(obj){
+		var C = document.getElementById(obj);
+		LinesX.Canvas = C;
+		
+		if(C.width != document.body.clientWidth) C.width = document.body.clientWidth;
+		if(C.height != document.body.clientHeight) C.height = document.body.clientHeight;
+		
+		LinesX.Width = C.width;
+		LinesX.Height = C.height;
+		LinesX.Context = C.getContext("2d");
+	},
+	Draw: function(){
+		LinesX.ApplyCanvas(LinesX.Canvas.id);
+		//
+		var ctx = LinesX.Context;
+
+		var w = LinesX.Width;
+		var h = LinesX.Height;
+		var e = LinesX;
+		
+		var dotColor = "#ff8";
+		var backColor = "rgba(0, 0, 0, 0.4)";
+		
+		ctx.fillStyle = backColor;
+		ctx.fillRect(0, 0, w, h);
+		//
+		if(e.Counter == 0)
+		{
+			var types = ["u", "d"];
+			var colors = ["red", "green", "blue"];
+			
+			for(var i = 0; i < 300; i++)
+			{
+				var x = Math.round(Math.random() * w);
+				var y = Math.round(Math.random() * h);
+				var n = Math.round(Math.random() * 100);
+				
+				var vx = Math.round(Math.random() * 10 - 5);
+				var vy = Math.round(Math.random() * 10 - 5);
+				
+				Quarks.push(new Quark(new Point(x, y, vx, vy), types[n % types.length], colors[n % colors.length]));
+			}
+			
+			for(var i = 0; i < 100; i++)
+			{
+				var x = Math.round(Math.random() * w);
+				var y = Math.round(Math.random() * h);
+				
+				var vx = Math.round(Math.random() * 10 - 5);
+				var vy = Math.round(Math.random() * 10 - 5);
+				
+				Electrons.push(new Electron(new Point(x, y, vx, vy)));
+			}
+		}
+		
+		// Draw
+		
+		for(var i = 0; i < Barions.length; i++)
+		{
+			var B = Barions[i];
+			e.DrawCircle(B.pos, 20, "rgba(255, 255, 255, 0.05)");
+		}
+		
+		for(var i = 0; i < Quarks.length; i++)
+		{
+			var Q = Quarks[i];
+			e.DrawCircle(Q.pos, 8, Q.colorCharge);
+			e.DrawText(Point(Q.pos.x - 4, Q.pos.y + 4), Q.type, 0.8);
+		}
+		
+		for(var i = 0; i < Electrons.length; i++)
+		{
+			var E = Electrons[i];
+			e.DrawCircle(E.pos, 1, "#fff");
+		}
+		
+		// Move
+		
+		for(var i = 0; i < Quarks.length; i++)
+		{
+			var Q = Quarks[i];
+			
+			if(Q.target == null)
+			{
+				Q.pos.x += Q.pos.velocityX;
+				Q.pos.y += Q.pos.velocityY;
+				
+				if(Q.pos.x < 0 || Q.pos.x > w) Q.pos.velocityX *= -1;
+				if(Q.pos.y < 0 || Q.pos.y > h) Q.pos.velocityY *= -1;
+				
+				//
+				
+				var freeQuarks = Quark.FindIn(Q, 30);
+				
+				if(freeQuarks.length >= 2)
+				{
+					var pos = new Point(Q.pos.x, Q.pos.y, Q.pos.velocityX, Q.pos.velocityY);
+					var B = new Barion(pos, Q, freeQuarks[0], freeQuarks[1]);
+					
+					Barions.push(B);
+					B.A.target = B.B.target = B.C.target = B;
+					
+					B.A.colorCharge = "red";
+					B.B.colorCharge = "green";
+					B.C.colorCharge = "blue";
+				}
+			}
+		}
+		
+		for(var i = 0; i < Electrons.length; i++)
+		{
+			var E = Electrons[i];
+			
+			if(E.target == null)
+			{
+				E.pos.x += E.pos.velocityX;
+				E.pos.y += E.pos.velocityY;
+				
+				if(E.pos.x < 0 || E.pos.x > w) E.pos.velocityX *= -1;
+				if(E.pos.y < 0 || E.pos.y > h) E.pos.velocityY *= -1;
+			}
+		}
+		
+		for(var i = 0; i < Barions.length; i++)
+		{
+			var B = Barions[i];
+			
+			B.pos.x += B.pos.velocityX;
+			B.pos.y += B.pos.velocityY;
+			
+			if(B.pos.x < 0 || B.pos.x > w) B.pos.velocityX *= -1;
+			if(B.pos.y < 0 || B.pos.y > h) B.pos.velocityY *= -1;
+			
+			var posA = new Point(0, 12);
+			var posB = LinesX.RotatePoint(posA, 120);
+			var posC = LinesX.RotatePoint(posA, 240);
+			
+			B.A.pos = new Point(B.pos.x + posA.x, B.pos.y + posA.y);
+			B.B.pos = new Point(B.pos.x + posB.x, B.pos.y + posB.y);
+			B.C.pos = new Point(B.pos.x + posC.x, B.pos.y + posC.y);
+			
+			//
+			
+			if(B.getCharge() != 0)
+			{
+				if(B.e == null)
+				{
+					var els = Electron.FindIn(B.pos, 50);
+					
+					if(els.length >= 1)
+					{
+						els[0].target = B;
+						B.e = els[0];
+					}
+				}
+				else
+				{
+					var ePos = new Point(0, 35);
+					ePos = LinesX.RotatePoint(ePos, e.Counter * 30);
+					B.e.pos = new Point(B.pos.x + ePos.x, B.pos.y + ePos.y);
+				}
+			}
+		}
+		
+		//
+		e.Counter++;
+		e.DrawText(e.Point(10, 30), e.FPSCountView + " FPS", 1);
+		e.FPSCount++;
+		//
+		setTimeout(function(){
+			e.Draw();
+		}, 30);
+		
+		//window.requestAnimationFrame(e.Draw);
+	},
+	Point: function(x, y){
+		return { x: x, y: y };
+	},
+	RotatePoint: function(point, degAngle){
+		var Angle = degAngle * (Math.PI/180); // 0.0174532925;
+		var x = point.x;
+		var y = point.y;
+		var rx = Math.round((x * Math.cos(Angle)) - (y * Math.sin(Angle)));
+		var ry = Math.round((x * Math.sin(Angle)) + (y * Math.cos(Angle)));
+		
+		return new Point(rx, ry);
+	},
+	GetAngle: function(A, B){
+		var X1 = A.x, Y1 = A.y;
+		var X2 = B.x, Y2 = B.y;
+		var Angle = Math.atan2(Y2 - Y1, X2 - X1) * (180/Math.PI);
+		Angle = (Angle < 0) ? Angle + 360 : Angle;
+
+		return Math.round(Angle);
+	},
+	DrawLine: function(A, B, color)
+	{
+		var ctx = LinesX.Context;
+		
+		ctx.beginPath();
+		ctx.moveTo(A.x, A.y);
+		ctx.lineTo(B.x, B.y);
+		ctx.lineWidth = 1;
+		ctx.strokeStyle = color;
+		ctx.stroke();
+	},
+	DrawCircle: function(pos, radius, color){
+		var ctx = LinesX.Context;
+
+		ctx.beginPath();
+		ctx.arc(pos.x, pos.y, radius, 0, 2 * Math.PI, false);
+		ctx.fillStyle = color;
+		ctx.fill();
+	},
+	DrawText: function(pos, text, scale){
+		if(scale > 0)
+		{
+			var ctx = LinesX.Context;
+			ctx.font = Math.round(scale * 14) + "px arial";
+
+			ctx.strokeStyle = "#000";
+			ctx.strokeText(text, pos.x + 1, pos.y + 1);
+			ctx.fillStyle = "#fff";
+			ctx.fillText(text, pos.x, pos.y);
+		}
+	},
+	Distance: function(A, B){
+		var dx = Math.abs(A.x - B.x);
+		var dy = Math.abs(A.y - B.y);
+		return Math.sqrt(dx * dx + dy * dy);
+	},
+	getMousePosition: function(moveEvent) {
+        var rect = LinesX.Canvas.getBoundingClientRect();
+
+        var x = moveEvent.clientX - rect.left;
+        var y = moveEvent.clientY - rect.top;
+
+        return new Point(x, y);
+    },
+
+};
+
+function in_array(what, where) {
+    for(var i = 0; i < where.length; i++)
+	{
+		if(what == where[i])
+		{
+			return true;
+		}
+	}  
+    return false;
+}
+
+LinesX.Init("LinesX");
+
+</script>

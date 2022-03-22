@@ -1,0 +1,255 @@
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+		<style>
+		body
+		{
+			margin: 0;
+		}
+		</style>
+	</head>
+	<body>
+		<div>
+			<canvas id="LinesX" width="1366" height="662" style="display: block;"></canvas>
+		</div>
+
+		<script>
+		
+		var Images = {
+			PawnW: CreateImage("PawnW.png"),
+			PawnB: CreateImage("PawnB.png"),
+			RookW: CreateImage("RookW.png"),
+			RookB: CreateImage("RookB.png"),
+			KnightW: CreateImage("KnightW.png"),
+			KnightB: CreateImage("KnightB.png"),
+			BishopW: CreateImage("BishopW.png"),
+			BishopB: CreateImage("BishopB.png"),
+			QueenW: CreateImage("QueenW.png"),
+			QueenB: CreateImage("QueenB.png"),
+			KingW: CreateImage("KingW.png"),
+			KingB: CreateImage("KingB.png"),
+		};
+		
+		var TileSize = 80;
+		var BoardWidth = 8;
+		var BoardHeight = 8;
+		
+		
+
+		var SelectedBody = -1;
+		var Objects = [];
+
+		function Point(x, y, velocityX, velocityY)
+		{
+			return { 
+				x: x | 0, 
+				y: y | 0, 
+				velocityX: velocityX | 0, 
+				velocityY: velocityY | 0
+			};
+		}
+		
+		function CreateImage(path)
+		{
+			var img = new Image();
+			img.src = path;
+			return img;
+		}
+
+		LinesX = {
+			Canvas: null,
+			Context: null,
+			Width: 0,
+			Height: 0,
+			
+			Points: [],
+			
+			Counter: 0,
+			
+			mousePosition: new Point(0, 0),
+			FPSCount: 0,
+			FPSCountView: 0,
+			
+			currentTime: 0,
+
+			Init: function(obj, struct){
+				var e = LinesX;
+
+				e.ApplyCanvas(obj);
+				e.Draw(0);
+
+				document.getElementById(obj).addEventListener("mousemove", function (event) {
+					e.mousePosition = e.getMousePosition(event);
+				}, false);
+
+				document.getElementById(obj).addEventListener("click", function (event) {
+					
+					
+					
+					event.preventDefault();
+				}, false);
+
+				/*Find(obj).addEventListener("contextmenu", function (event) {
+					e.Zoom *= 0.95;
+					e.OffsetX += (e.Width/2 - e.mousePosition.x) < 0 ? -10 : 10;
+					e.OffsetY += (e.Height/2 - e.mousePosition.y) < 0 ? -10 : 10;
+					e.Draw();
+					event.preventDefault();
+				}, false);*/
+				
+				setInterval(function(){
+					e.FPSCountView = e.FPSCount * 2;
+					e.FPSCount = 0;
+				}, 500);
+			},
+			ApplyCanvas: function(obj){
+				var C = document.getElementById(obj);
+				LinesX.Canvas = C;
+				
+				if(C.width != document.body.clientWidth && document.body.clientWidth != 0) C.width = document.body.clientWidth;
+				if(C.height != document.body.clientHeight && document.body.clientHeight != 0) C.height = document.body.clientHeight;
+				
+				LinesX.Width = C.width;
+				LinesX.Height = C.height;
+				LinesX.Context = C.getContext("2d");
+			},
+			Draw: function(time){
+				dt = (time - LinesX.currentTime) / 1000;
+				LinesX.currentTime = time;
+				if(dt > 0.1)dt = 0;
+				
+				LinesX.ApplyCanvas(LinesX.Canvas.id);
+				//
+				var ctx = LinesX.Context;
+
+				var w = LinesX.Width;
+				var h = LinesX.Height;
+				var e = LinesX;
+				
+				var backColor = "rgba(90, 90, 90, 1)";
+				
+				ctx.fillStyle = backColor;
+				ctx.fillRect(0, 0, w, h);
+				//
+				if(e.Counter == 0)
+				{
+					
+				}
+				
+				// Draw
+				
+				TileSize = Math.min(w, h) / BoardWidth;
+				
+				for(var x = 0; x < BoardWidth; x++)
+				{
+					for(var y = 0; y < BoardHeight; y++)
+					{
+						var n = x + y;
+						
+						var tx = x * TileSize;
+						var ty = y * TileSize;
+						
+						var white = "#ddd";
+						var black = "#999";
+						
+						ctx.fillStyle = (n % 2 == 0) ? white : black;
+						ctx.fillRect(tx, ty, TileSize, TileSize);
+						
+						ctx.drawImage(Images.PawnB, tx, ty, TileSize, TileSize);
+					}
+				}
+				
+				//
+				e.Counter++;
+				e.DrawText(e.Point(10, 30), e.FPSCountView + " FPS / Objects: " + Objects.length, 1);
+				e.FPSCount++;
+				//
+				/*setTimeout(function(){
+					e.Draw();
+				}, 30);*/
+				
+				window.requestAnimationFrame(e.Draw);
+			},
+			Point: function(x, y){
+				return { x: x, y: y };
+			},
+			RotatePoint: function(point, degAngle){
+				var Angle = degAngle * (Math.PI/180); // 0.0174532925;
+				var x = point.x;
+				var y = point.y;
+				var rx = Math.round((x * Math.cos(Angle)) - (y * Math.sin(Angle)));
+				var ry = Math.round((x * Math.sin(Angle)) + (y * Math.cos(Angle)));
+				
+				return new Point(rx, ry);
+			},
+			GetAngle: function(A, B){
+				var X1 = A.x, Y1 = A.y;
+				var X2 = B.x, Y2 = B.y;
+				var Angle = Math.atan2(Y2 - Y1, X2 - X1) * (180/Math.PI);
+				Angle = (Angle < 0) ? Angle + 360 : Angle;
+
+				return Math.round(Angle);
+			},
+			DrawLine: function(A, B, color)
+			{
+				var ctx = LinesX.Context;
+				
+				ctx.beginPath();
+				ctx.moveTo(A.x, A.y);
+				ctx.lineTo(B.x, B.y);
+				ctx.lineWidth = 1;
+				ctx.strokeStyle = color;
+				ctx.stroke();
+			},
+			DrawCircle: function(pos, radius, color){
+				var ctx = LinesX.Context;
+
+				ctx.beginPath();
+				ctx.arc(pos.x, pos.y, radius, 0, 2 * Math.PI, false);
+				ctx.fillStyle = color;
+				ctx.fill();
+			},
+			DrawText: function(pos, text, scale){
+				if(scale > 0)
+				{
+					var ctx = LinesX.Context;
+					ctx.font = Math.round(scale * 14) + "px arial";
+
+					ctx.strokeStyle = "#000";
+					ctx.strokeText(text, pos.x + 1, pos.y + 1);
+					ctx.fillStyle = "#fff";
+					ctx.fillText(text, pos.x, pos.y);
+				}
+			},
+			Distance: function(A, B){
+				var dx = Math.abs(A.x - B.x);
+				var dy = Math.abs(A.y - B.y);
+				return Math.sqrt(dx * dx + dy * dy);
+			},
+			getMousePosition: function(moveEvent) {
+				var rect = LinesX.Canvas.getBoundingClientRect();
+
+				var x = moveEvent.clientX - rect.left;
+				var y = moveEvent.clientY - rect.top;
+
+				return new Point(x, y);
+			},
+
+		};
+
+		function in_array(what, where) {
+			for(var i = 0; i < where.length; i++)
+			{
+				if(what == where[i])
+				{
+					return true;
+				}
+			}  
+			return false;
+		}
+
+		LinesX.Init("LinesX");
+
+		</script>
+	</body>
+</html>

@@ -1,0 +1,74 @@
+﻿name: Docker CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  # BUILD
+  build:
+    runs-on: ubuntu-latest
+    env:
+      ROOT: .
+      PROJECT: src/Dockerfile
+      IMAGE: demos-legacy
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Docker login
+      working-directory: ${{env.ROOT}}
+      run: |
+        docker context use default
+        echo ${{secrets.PACKAGES_WRITE_TOKEN}} | docker login ghcr.io \
+        --username ${{github.repository_owner}} --password-stdin
+
+    - name: Build image
+      working-directory: ${{env.ROOT}}
+      run: |
+        docker pull ghcr.io/${{github.repository_owner}}/${{env.IMAGE}} || true
+        docker build --pull --file ${{env.PROJECT}} --tag ${{env.IMAGE}} --cache-from ${{env.IMAGE}} .
+      
+    - name: Push image
+      working-directory: ${{env.ROOT}}
+      if: github.ref == 'refs/heads/master'
+      run: |
+        IMAGE_URL="ghcr.io/${{github.repository_owner}}/${{env.IMAGE}}"
+        docker tag ${{env.IMAGE}} $IMAGE_URL
+        docker push $IMAGE_URL
+    
+  # DEPLOY
+  deploy:
+    runs-on: ubuntu-latest
+    needs: 
+      - build
+    if: github.ref == 'refs/heads/master'
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Read docker-compose.yml
+      id: docker-compose
+      uses: juliangruber/read-file-action@v1
+      with:
+        path: ./docker-compose.yml
+
+    - name: Deploy
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{secrets.SSH_HOST}}
+        username: ${{secrets.SSH_USERNAME}}
+        password: ${{secrets.SSH_PASSWORD}}
+        script: |
+          mkdir -p ~/deploy/${{github.repository}}
+          cd ~/deploy/${{github.repository}}
+          echo '${{steps.docker-compose.outputs.content}}' > docker-compose.yml
+
+          echo ${{secrets.PACKAGES_WRITE_TOKEN}} | docker login ghcr.io \
+          --username ${{github.repository_owner}} --password-stdin
+
+          docker-compose pull
+          docker stack deploy --compose-file docker-compose.yml legacy \
+          --with-registry-auth --orchestrator swarm
+

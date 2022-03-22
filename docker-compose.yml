@@ -1,0 +1,26 @@
+version: "3.9"
+services:
+  demos-legacy:
+    image: ghcr.io/gluschenko/demos-legacy:latest
+    networks:
+      - proxy
+    deploy:
+      mode: replicated
+      replicas: 1
+      update_config:
+        order: start-first
+        failure_action: rollback
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=proxy"
+
+        - "traefik.http.routers.demos-legacy.entrypoints=websecure"
+        - "traefik.http.routers.demos-legacy.rule=Host(`demos.gluschenko.net`)"
+        - "traefik.http.routers.demos-legacy.tls=true"
+        - "traefik.http.routers.demos-legacy.tls.certresolver=letsencrypt"
+
+        - "traefik.http.services.demos-legacy.loadbalancer.server.port=80"
+
+networks:
+  proxy:
+    external: true
