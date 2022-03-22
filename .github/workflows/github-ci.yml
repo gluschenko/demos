@@ -32,8 +32,8 @@ jobs:
         docker build --pull --file ${{env.PROJECT}} --tag ${{env.IMAGE}} --cache-from ${{env.IMAGE}} .
       
     - name: Push image
-      working-directory: ${{env.ROOT}}
       if: github.ref == 'refs/heads/master'
+      working-directory: ${{env.ROOT}}
       run: |
         IMAGE_URL="ghcr.io/${{github.repository_owner}}/${{env.IMAGE}}"
         docker tag ${{env.IMAGE}} $IMAGE_URL
