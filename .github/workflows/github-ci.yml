@@ -69,7 +69,7 @@ jobs:
           echo ${{secrets.PACKAGES_WRITE_TOKEN}} | docker login ghcr.io \
           --username ${{github.repository_owner}} --password-stdin
 
-          docker-compose pull
+          docker compose pull
           docker stack deploy --compose-file docker-compose.yml legacy \
           --with-registry-auth --orchestrator swarm
 
